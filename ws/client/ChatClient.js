@@ -1,10 +1,12 @@
 const {WebSocket} = require('ws');
+const crypto = require('crypto');
 
 class ChatClient {
     constructor(options) {
         this.ws = new WebSocket(options.url);
         this.sessionId = options.sessionId || null;
         this.username = options.username;
+        this.encryptionKey = options.key || 'default_secret_key';
     }
 
     init() {
@@ -27,15 +29,17 @@ class ChatClient {
     onMessage(data) {
         const parsedData = JSON.parse(data);
 
-        switch (parsedData.type) {
-            case 'message':
-                console.log(`${parsedData.data.sender} >>: ${parsedData.data.message}`);
-                break;
-            case 'options':
-                this.setOptions(parsedData);
-                break;
-            default:
-                console.log('unknown message type');
+        if (parsedData.type === 'message') {
+            try {
+                const decryptedMessage = this.decrypt(parsedData.data.message);
+                console.log(`${parsedData.data.sender} >>: ${decryptedMessage}`);
+            } catch (err) {
+                console.error('Failed to decrypt message:', err.message);
+            }
+        } else if (parsedData.type === 'options') {
+            this.setOptions(parsedData);
+        } else {
+            console.log('unknown message type');
         }
     }
 
@@ -45,12 +49,34 @@ class ChatClient {
     }
 
     send(data) {
+        const encryptedMessage = this.encrypt(data);
         const msgObject = {
             type: 'message',
             sessionId: this.sessionId,
-            data: data
+            data: {
+                sender: this.username,
+                message: encryptedMessage
+            }
         };
         this.ws.send(JSON.stringify(msgObject));
+    }
+
+    encrypt(text) {
+        const key = Buffer.from(this.encryptionKey.padEnd(32, '0')); // 32 символи
+        const iv = crypto.randomBytes(16);
+        const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+        let encrypted = cipher.update(text, 'utf8', 'hex');
+        encrypted += cipher.final('hex');
+        return `${iv.toString('hex')}:${encrypted}`;
+    }
+
+    decrypt(text) {
+        const key = Buffer.from(this.encryptionKey.padEnd(32, '0')); // 32 символи
+        const [iv, encryptedText] = text.split(':');
+        const decipher = crypto.createDecipheriv('aes-256-cbc', key, Buffer.from(iv, 'hex'));
+        let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
+        decrypted += decipher.final('utf8');
+        return decrypted;
     }
 }
 
