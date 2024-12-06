@@ -5,7 +5,6 @@ class Client {
         this.ws = options.ws;
         this.username = options.username;
         this.sessionId = options.sessionId || randomUUID();
-
         this.sendOptions();
     }
 
