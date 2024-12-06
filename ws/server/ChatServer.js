@@ -11,16 +11,13 @@ class ChatServer {
 
     init() {
         this.wss = new WebSocketServer({ port: this.port });
-
         this.wss.on('connection', (ws) => this.onConnection(ws));
         this.wss.on('error', console.error);
-
         console.log(`ChatServer started on port ${this.port}`);
     }
 
     onConnection(ws) {
         console.log('new connected');
-
         ws.on('message', (data) => this.onMessage(ws, data));
     }
 
@@ -28,15 +25,12 @@ class ChatServer {
         const msgObject = JSON.parse(data.toString());
         console.log(msgObject);
 
-        switch (msgObject.type) {
-            case 'message':
-                this.broadcast(msgObject);
-                break;
-            case 'options':
-                this.createClient(ws, msgObject);
-                break;
-            default:
-                console.log('unknown message type');
+        if (msgObject.type === 'message') {
+            this.broadcast(msgObject);
+        } else if (msgObject.type === 'options') {
+            this.createClient(ws, msgObject);
+        } else {
+            console.log('unknown message type');
         }
     }
 
@@ -46,12 +40,9 @@ class ChatServer {
         if (isClientExists) {
             const client = this.clientsMap.get(msgObject.sessionId);
             client.updateWs(ws);
-
             console.log(`Client ${client.username} reconnected`);
             return;
         }
-
-
 
         const client = new Client({
             ws: ws,
@@ -65,15 +56,13 @@ class ChatServer {
 
     broadcast(msgObject) {
         const sender = this.clientsMap.get(msgObject.sessionId);
-        console.log(msgObject);
         this.clientsMap.forEach((client) => {
-            console.log(client.sessionId, msgObject.sessionId);
-            if (client.ws.readyState == WebSocket.OPEN && client.sessionId != msgObject.sessionId) {
+            if (client.ws.readyState === WebSocket.OPEN && client.sessionId !== msgObject.sessionId) {
                 client.send({
                     type: 'message',
                     data: {
                         sender: sender.username,
-                        message: msgObject.data
+                        message: msgObject.data.message
                     }
                 });
             }
